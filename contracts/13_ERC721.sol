@@ -23,6 +23,4 @@ contract erc721 is ERC721 {
 
     }
 
-
-
 }
