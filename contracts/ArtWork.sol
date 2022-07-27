@@ -52,7 +52,7 @@ contract ArtToken is ERC721, Ownable {
         Art memory newArtWork = Art(_name, COUNTER, randDna, 1, randRarity);
         art_works.push(newArtWork);
         _safeMint(msg.sender, COUNTER);
-        emit newArtWork(msg.sender, COUNTER, randDna);
+        emit NewArtWork(msg.sender, COUNTER, randDna);
         COUNTER++;
     }
 
@@ -75,9 +75,9 @@ contract ArtToken is ERC721, Ownable {
 
     //Obtaining a user NFTs tokens
     function getOwnerArtWorks(address _owner) public view returns (Art [] memory) {
-        Art[] memory art = new Art[] (balanceOf(_owner));
+        Art[] memory result = new Art[] (balanceOf(_owner));
         uint256 counter_owner = 0;
-        for(uint256 i = 0; art_works.length; i++) {
+        for(uint256 i = 0; i < art_works.length; i++) {
             if(ownerOf(i) == _owner) {
                 result[counter_owner] = art_works[i];
                 counter_owner++;
@@ -90,6 +90,26 @@ contract ArtToken is ERC721, Ownable {
     // NFT Token Development
     //===============================================
 
+    //NFT Token Payment
+    function createRandomArtWork(string memory _name) public payable {
+        require(msg.value >= fee);
+        _createArtWork(_name);
+
+    }
+
+    //Extraction of ethers from the Smart Contract to the owner
+    function witdraw() external payable onlyOwner {
+        address payable _owner = payable(owner());
+        _owner.transfer(address(this).balance);
+
+    }
+
+    //Level up NFT tokens
+    function levelUp(uint256 _artId) public {
+        require(ownerOf(_artId) == msg.sender);
+        Art storage art = art_works[_artId];
+        art.level++;
+    }
 
 
 
