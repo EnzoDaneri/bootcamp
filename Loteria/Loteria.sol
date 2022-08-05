@@ -69,6 +69,109 @@ contract loteria is ERC20, Ownable {
 
     }
 
+    //Compra de tokens ERC20
+    function compraToken(uint256 _numTokens) public payable {
+        //Registro del usuario
+        if(usuario_contract[msg.sender] == address(0)) {
+            registrar();
+        }
+        //Establecimiento del costo de los tokens a comprar
+        uint256 coste = precioTokens(_numTokens);
+        //Evaluacion del dinero que el cliente paga por los tokens
+        require(msg.value >= coste, "Compra menos tokens o paga con mas ethers");
+        //Obtencion del numero de tokens ERC20 disponibles
+        uint256 balance = balanceTokensSC();
+        require(_numTokens <= balance, "COmpra menos tokens");
+        uint256 returnValue = msg.value - coste;
+        //El smart contract devuelve la cantidad restante 
+        //Funcion interna que envia ethers
+        payable(msg.sender).transfer(returnValue);
+        //Envio de tokens al cliente/usuario (envia tokens)
+        _transfer(address(this), msg.sender, _numTokens);
+
+    }
+    //Devolucion de tokens al smart contract
+    function devolverTokens(uint _numTokens) public payable {
+        //El numero de tokens deber ser mayor a cero
+        require(_numTokens > 0, "Necesitas devolver un numero de tokens mayor a cero");
+        //El usuario debe acreditar que tiene los tokens que quiere devolver
+        require(_numTokens <= balanceTokens(msg.sender), "No tienes los tokens que deseas devolver");
+        //El usuario transfiere los tokens al smart contract
+        _transfer(msg.sender, address(this), _numTokens);
+        //El smart contract envia los ethers al usuario
+        payable(msg.sender).transfer(precioTokens(_numTokens));
+    }
+
+    //================================
+    //Gestion de la loteria
+    //================================
+
+    //Precio del boleto de loteria (pagado en tokens ERC20)
+    uint public precioBoleto = 5;
+    //Relacionar persona que compra el boleto con el numero del boleto
+    mapping(address => uint[]) idPersona_boletos;
+    //Relacion boleto => ganador
+    mapping(uint => address) ADNBoleto;
+    uint randNonce = 0;
+    //Boletos de loteria generados
+    uint [] boletosComprados;
+    //Compra de boletos
+    function compraBoleto(uint _numBoletos) public {
+        //Precio total de los boletos a comprar
+        uint precioTotal = _numBoletos * precioBoleto;
+        //Verificacion de los tokens del usuario
+        require(precioTotal <= balanceTokens(msg.sender),
+        "No tienes tokens suficientes");
+        //transferencia de tokens del usuario al smart contract
+        _transfer(msg.sender, address(this), precioTotal);
+          /* Recoge la marca de tiempo (block.timestamp), msg.sender y un Nonce
+        (un numero que solo se utiliza una vez, para que no ejecutemos dos veces la misma 
+        funcion de hash con los mismos parametros de entrada) en incremento.
+        Se utiliza 'keccak256 'para convertir estas entradas a un hash aleatorio, 
+        convertir ese hash a un uint y luego utilizamos % 10000 para tomar los ultimos 4 digitos,
+        dando un valor aleatorio entre 0 - 9999. */
+        for(uint i=0; i<_numBoletos; i++) {
+            uint random = uint(keccak256(abi.encodePacked(block.timestamp, msg.sender, randNonce))) % 10000;
+            randNonce++;
+            //Almacenamiento de los datos del boleto enlazados al usuario
+            idPersona_boletos[msg.sender].push(random);
+            //Almacenamiento de los datos de los boletos
+            boletosComprados.push(random);
+            //Asignacion del ADN de un boleto para la generacion de un ganador
+            ADNBoleto[random] = msg.sender;
+            //Creacion de un nuevo NFT para el numero de boleto
+            boletosNFTs(usuario_contract[msg.sender]).mintBoleto(msg.sender, random);
+
+        }
+    }
+
+    //Visualizacion de los boletos del usuario
+    function tusBoletos(address _propietario) public view returns (uint [] memory) {
+        return idPersona_boletos[_propietario];
+
+    }
+
+    //Generacion del ganador de la loteria
+    function generarGanador() public onlyOwner {
+        //Declaracion de la longitud del array
+        uint longitud = boletosComprados.length;
+        //Verificacion de la compra de al menos un boleto
+        require(longitud > 0, "No hay boletos comprados");
+        //Eleccion aleatoria entre [0 - longitud]
+        uint random = uint(uint(keccak256(abi.encodePacked(block.timestamp))) % longitud);
+        //Seleccion del numero aleatorio
+        uint eleccion = boletosComprados[random];
+        //Direccion del ganador de la loteria
+        ganador = ADNBoleto[eleccion];
+        //Envio del 95% del premio al ganador
+        payable(ganador).transfer(address(this).balance * 95 / 100);
+        //Envio del 5% al propietario
+        payable(owner()).transfer(address(this).balance * 5 / 100);
+
+
+
+    }
+
 
 }
 
